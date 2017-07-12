@@ -3,6 +3,7 @@
 # encrypt some simple http proxy code
 ENCRYPTED=$(curl -X POST \
   http://localhost:3000/encrypt \
+  -H 'authorization: Basic YWRtaW46YWRtaW4xMjM=' \
   -H 'cache-control: no-cache' \
   -H 'content-type: application/json' \
   -s \
