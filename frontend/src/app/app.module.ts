@@ -4,6 +4,7 @@ import { HttpModule } from '@angular/http';
 import { FormsModule } from '@angular/forms';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MaterialModule } from '@angular/material';
+import { CdkTableModule } from '@angular/cdk';
 
 // routing
 import { RouterModule, Routes } from '@angular/router';
@@ -12,6 +13,11 @@ import { RouterModule, Routes } from '@angular/router';
 import { AuthService } from './services/auth.service';
 import { UserGuard } from './guards/user.guard';
 import { AdminGuard } from './guards/admin.guard';
+
+// services
+import { UserService } from './services/user.service';
+import { PackageService } from './services/package.service';
+import { CallService } from './services/call.service';
 
 // components
 import { AppComponent } from './app.component';
@@ -85,6 +91,7 @@ const appRoutes: Routes = [
   imports: [
     BrowserModule,
     BrowserAnimationsModule,
+    CdkTableModule,
     MaterialModule,
     HttpModule,
     FormsModule,
@@ -96,7 +103,10 @@ const appRoutes: Routes = [
   providers: [
     AuthService,
     AdminGuard,
-    UserGuard
+    UserGuard,
+    UserService,
+    CallService,
+    PackageService
   ],
   bootstrap: [AppComponent]
 })
