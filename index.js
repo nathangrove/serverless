@@ -6,15 +6,37 @@ let algorithm = 'aes256';
 var UglifyJS = require("uglify-js");
 var auth = require('basic-auth');
 
-
+/************************ DATABASE SETUP *****************************/
 var Datastore = require('nedb');
-let users = new Datastore({ filename: 'users.db', autoload: true });
-let keys = new Datastore({ filename: 'keys.db', autoload: true });
-users.persistence.setAutocompactionInterval(1800000);
-keys.persistence.setAutocompactionInterval(60000);
-users.ensureIndex({ fieldName : 'username', unique: true }, err => { if(err) console.log(err); });
+let db = {
+  users: new Datastore({ filename: 'users.db', autoload: true }),
+  keys: new Datastore({ filename: 'keys.db', autoload: true }),
+  packages: new Datastore({ filename: 'packages.db', autoload: true })
+}
+db.users.persistence.setAutocompactionInterval(1800000);
+db.packages.persistence.setAutocompactionInterval(1800000);
+db.keys.persistence.setAutocompactionInterval(60000);
+db.users.ensureIndex({ fieldName : 'username', unique: true }, err => { if(err) console.log(err); });
 
 
+
+/*********************** EXPRESS CONFIGURATION *************************/
+
+// serve up the public directory
+app.use(express.static('public'));
+
+// parse out json bodies
+app.use(bodyParser.json());
+
+// enable CORS
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
+
+/*********************** AUTHENTICATION *******************************/
 // an authentication function
 app.authenticate = function(request,callback){
 
@@ -31,7 +53,7 @@ app.authenticate = function(request,callback){
 
     console.log(signature);
     // find the user by username in the payload
-    users.findOne({ username: payload.user }, (error, user) => { 
+    db.users.findOne({ username: payload.user }, (error, user) => { 
       if (!user || !user.active) return callback("Invalid user");
       if (signature != encodeURI(crypto.createHmac('SHA256',user._id + "saltedWithSuperSaltySalt").update(`${header}.${JSON.stringify(payload)}`).digest('hex')))
         return callback('Invalid signature');
@@ -53,23 +75,19 @@ app.authenticate = function(request,callback){
   } else if (authHeader[0] == 'Basic'){
     let auth = new Buffer(authHeader[1], 'base64').toString().split(/:/);
     let password = crypto.createHash('md5').update(auth[1]).digest('hex') 
-    users.findOne({ username: auth[0], password: password }, (err, user) => callback(null,user) );
+    db.users.findOne({ username: auth[0], password: password }, (err, user) => callback(null,user) );
   }
 
 }
 
-// serve up the public directory
-app.use(express.static('public'));
 
 
-// parse out json bodies
-app.use(bodyParser.json());
-
-
-// return a JWT
+/*********************** LOGIN ********************************/
+// Login the user and hand back a JWT
 app.post('/login', function(req,res){
+  console.log("Attempting login:",req.body);
   let password = crypto.createHash('md5').update(req.body.password).digest('hex');
-  users.findOne({ username: req.body.username, password: password }, (error, user) => {
+  db.users.findOne({ username: req.body.username, password: password }, (error, user) => {
     if (!user){
       res.status(403);
       return res.send("<h1>403</h1><h2>Unauthorized</h2>");
@@ -83,9 +101,9 @@ app.post('/login', function(req,res){
     let encryptedPayload = cipher.update(JSON.stringify({
       issue: new Date().getTime(),
       ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-      user: user._id
+      user: user._id,
     }), 'utf8', 'hex') + cipher.final('hex');
-    let payload = JSON.stringify({ "user": user.username, "data": encryptedPayload });
+    let payload = JSON.stringify({ "user": user.username, "admin": user.admin, "data": encryptedPayload });
 
     // jwt signature
     let signature = crypto.createHmac('SHA256',user._id + "saltedWithSuperSaltySalt").update(`${header}.${payload}`).digest('hex');
@@ -104,7 +122,9 @@ app.post('/login', function(req,res){
 })
 
 
-// encrpyt code
+
+/*********************** ENCRYPT ***************************/
+// Encrypt code that should be ran later
 app.post('/encrypt', function(req,res){
 
   // authenticate the user
@@ -129,7 +149,7 @@ app.post('/encrypt', function(req,res){
     let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
 
     // store the encryption key with the id being the md5 of the encrypted code
-    keys.insert({
+    db.keys.insert({
       _id: crypto.createHash('md5').update(encrypted).digest('hex'),
       user: user._id,
       runs: 0,
@@ -147,8 +167,8 @@ app.post('/encrypt', function(req,res){
 
 
 
-
-
+/************************* RUN CODE **************************/
+// Run encrypted code
 app.post('/run', function (req, res) {
 
   // create a new VM
@@ -166,7 +186,7 @@ app.post('/run', function (req, res) {
   let encryptedCode = req.body.code;
 
   // get the decryption key
-  keys.findOne({ _id: crypto.createHash('md5').update(encryptedCode).digest('hex')}, (err,key) => {
+  db.keys.findOne({ _id: crypto.createHash('md5').update(encryptedCode).digest('hex')}, (err,key) => {
     if (!key){
       res.status(500);
       return res.send('Invalid code');
@@ -194,12 +214,96 @@ app.post('/run', function (req, res) {
 
 });
 
+app.get("/:table", function(req,res){
+  // authenticate the user
+  app.authenticate(req, (error,user) => {
 
+    if (!user || !user.admin) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
 
+    let table = req.params.table;
+    if (!db[table]){
+      res.status(404);
+      return res.send('Object not found');
+    }
 
-app.listen(3000, function () {
-  console.log('Serverless is up and running on port 3000!')
+    db[table].find({}, function (err, docs) {
+      if (err){
+        res.status(500);
+        res.send(err);
 
+      } else if (!obj.length){
+        res.status(404);
+        res.send('Object not found');
+
+      } else {
+        res.send(docs);
+      }
+    });
+
+  });
+}).post("/:table", function(req,res){
+  app.authenticate(req, (error,user) => {
+
+    if (!user || !user.admin) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
+
+    let newUser = {};
+    newUser.username = req.body.username;
+    newUser.password = crypto.createHash('md5').update(req.body.password).digest('hex')
+    newUser.time = new Date().getTime();
+    newUser.admin = req.body.admin;
+
+    let table = req.params.table;
+    if (!db[table]){
+      res.status(404);
+      return res.send('Object not found');
+    }
+
+    db[table].insert(newUser, (error,obj) => {
+      if (error) {
+        res.status(500);
+        res.send(error);
+      } else {
+        res.send(obj);
+      }
+    });
+  }) 
+}).delete("/:table/:id", function(req,res){
+  app.authenticate(req, (error,user) => {
+
+    if (!user || !user.admin) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
+
+    let table = req.params.table;
+    if (!db[table]){
+      res.status(404);
+      return res.send('Object not found');
+    }
+
+    db[table].remove({ _id: req.param.id }, (error,num) => {
+      if (error){
+        res.status(500);
+        return res.send(error);
+      } else if (!num){
+        res.status(404);
+        res.send("Object not found");
+      } else {
+        res.send();
+      }
+    })
+  })
 })
+
+
+
+// Fireup the server
+app.listen(3000, () => console.log('Serverless is up and running on port 3000!') )
 
 
