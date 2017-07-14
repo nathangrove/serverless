@@ -36,9 +36,59 @@ app.use(function(req, res, next) {
 });
 
 
+
+/************************* RUN CODE **************************/
+// Run encrypted code
+app.post('/run', function (req, res) {
+
+  // create a new VM
+  const {NodeVM} = require('vm2');
+  const vm = new NodeVM({
+    console: 'redirect',
+    sandbox: {},
+    require: {
+      external: true,
+      root: './vm/node_modules'
+    }
+  });
+    
+  // get the encrypted code
+  let encryptedCode = req.body.code;
+
+  // get the decryption key
+  db.keys.findOne({ _id: crypto.createHash('md5').update(encryptedCode).digest('hex')}, (err,key) => {
+    if (!key){
+      res.status(500);
+      return res.send('Invalid code');
+    } else {
+
+      // update the database
+      keys.update({ _id: key._id},{ $set: {runs: key.runs+1, last: new Date().getTime() }});
+
+      // convert key into buffer
+      key = Buffer.from(key.key,'utf8');
+
+      // create the decipher
+      var decipher = crypto.createDecipher(algorithm, key);
+
+      // decrypt
+      var executionCode = decipher.update(encryptedCode, 'hex', 'utf8') + decipher.final('utf8');
+
+      // prepare the vm
+      let runFunc = vm.run(executionCode,'vm.js');
+
+      // run the code
+      runFunc(req, res);
+    }
+  });
+
+})
+
+
 /*********************** AUTHENTICATION *******************************/
 // an authentication function
 app.authenticate = function(request,callback){
+  if (!request.headers['authorization']) return callback(null);
 
   var authHeader = request.headers['authorization'].trim().split(/\s+/);
 
@@ -135,6 +185,9 @@ app.post('/encrypt', function(req,res){
       return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
     }
 
+    // did the user name this?
+    let name = req.body.name;
+
     // wrap the code in commonjs module and then uglify it.
     let code = UglifyJS.minify('module.exports = function(request,response){' + req.body.code + '};').code;
 
@@ -152,6 +205,7 @@ app.post('/encrypt', function(req,res){
     db.keys.insert({
       _id: crypto.createHash('md5').update(encrypted).digest('hex'),
       user: user._id,
+      name: name,
       runs: 0,
       last: 0,
       created: new Date().getTime(),
@@ -167,53 +221,74 @@ app.post('/encrypt', function(req,res){
 
 
 
-/************************* RUN CODE **************************/
-// Run encrypted code
-app.post('/run', function (req, res) {
 
-  // create a new VM
-  const {NodeVM} = require('vm2');
-  const vm = new NodeVM({
-    console: 'redirect',
-    sandbox: {},
-    require: {
-      external: true,
-      root: './vm/node_modules'
+/************* USER CALLS **********************/
+app.get('/calls', function(req,res){
+  // authenticate the user
+  app.authenticate(req, (error,user) => {
+
+    if (!user) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
     }
-  });
-    
-  // get the encrypted code
-  let encryptedCode = req.body.code;
 
-  // get the decryption key
-  db.keys.findOne({ _id: crypto.createHash('md5').update(encryptedCode).digest('hex')}, (err,key) => {
-    if (!key){
-      res.status(500);
-      return res.send('Invalid code');
-    } else {
+    db.keys.find({ user: user._id }, (err,docs) => {
+      if (err) {
+        res.status(500);
+        res.send(err);
+      }
 
-      // update the database
-      keys.update({ _id: key._id},{ $set: {runs: key.runs+1, last: new Date().getTime() }});
+      // strip out the decryption keys
+      res.send(docs.map( doc => {
+        delete doc.key;
+        return doc;
+      }));
 
-      // convert key into buffer
-      key = Buffer.from(key.key,'utf8');
-
-      // create the decipher
-      var decipher = crypto.createDecipher(algorithm, key);
-
-      // decrypt
-      var executionCode = decipher.update(encryptedCode, 'hex', 'utf8') + decipher.final('utf8');
-
-      // prepare the vm
-      let runFunc = vm.run(executionCode,'vm.js');
-
-      // run the code
-      runFunc(req, res);
-    }
+    })
   });
 
-});
+}).put('/calls/:id', function(req,res){
+  // authenticate the user
+  app.authenticate(req, (error,user) => {
 
+    if (!user) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
+
+    db.update({ _id: req.params.id, user: user._id }, { $set: req.body }, { multi: false }, function (err, numUpdated) {
+      if (err){
+        res.status(500);
+        res.send(err);
+      } else {
+        res.send()
+      }
+    });
+  });
+}).delete('/calls/:id', function(req,res){
+  // authenticate the user
+  app.authenticate(req, (error,user) => {
+
+    if (!user) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
+
+
+    db.remove({ _id: req.params.id, user: user._id }, {}, function (err, numRemoved) {
+      if (err){
+        res.status(500);
+        res.send(err);
+      } else {
+        res.send()
+      }
+    });
+  });
+})
+
+
+
+/*********** ADMIN TABLE ACCESS **************/
 app.get("/:table", function(req,res){
   // authenticate the user
   app.authenticate(req, (error,user) => {
@@ -234,7 +309,7 @@ app.get("/:table", function(req,res){
         res.status(500);
         res.send(err);
 
-      } else if (!obj.length){
+      } else if (!docs.length){
         res.status(404);
         res.send('Object not found');
 
