@@ -5,6 +5,9 @@ var crypto = require('crypto');
 let algorithm = 'aes256';
 var UglifyJS = require("uglify-js");
 var auth = require('basic-auth');
+var packageJson = require('./package.json');
+var npm = require('npm-programmatic');
+
 
 /************************ DATABASE SETUP *****************************/
 var Datastore = require('nedb');
@@ -14,10 +17,10 @@ let db = {
   packages: new Datastore({ filename: 'packages.db', autoload: true })
 }
 db.users.persistence.setAutocompactionInterval(1800000);
-db.packages.persistence.setAutocompactionInterval(1800000);
-db.keys.persistence.setAutocompactionInterval(60000);
 db.users.ensureIndex({ fieldName : 'username', unique: true }, err => { if(err) console.log(err); });
-
+db.packages.persistence.setAutocompactionInterval(1800000);
+db.packages.ensureIndex({ fieldName : 'name', unique: true }, err => { if(err) console.log(err); });
+db.keys.persistence.setAutocompactionInterval(60000);
 
 
 /*********************** EXPRESS CONFIGURATION *************************/
@@ -48,7 +51,7 @@ app.post('/run', function (req, res) {
     sandbox: {},
     require: {
       external: true,
-      root: './vm/node_modules'
+      buildin: packageManger.packages
     }
   });
     
@@ -63,7 +66,7 @@ app.post('/run', function (req, res) {
     } else {
 
       // update the database
-      keys.update({ _id: key._id},{ $set: {runs: key.runs+1, last: new Date().getTime() }});
+      db.keys.update({ _id: key._id},{ $set: {runs: key.runs+1, last: new Date().getTime() }});
 
       // convert key into buffer
       key = Buffer.from(key.key,'utf8');
@@ -78,11 +81,20 @@ app.post('/run', function (req, res) {
       let runFunc = vm.run(executionCode,'vm.js');
 
       // run the code
-      runFunc(req, res);
+      try {
+        runFunc(req, res);
+      } catch (e){
+        // update the database
+        db.keys.update({ _id: key._id},{ $set: {crashes: key.crashes+1, last: new Date().getTime() }});
+
+        res.status(500);
+        res.send(e);
+      }
+  
     }
   });
-
 })
+
 
 
 /*********************** AUTHENTICATION *******************************/
@@ -188,37 +200,52 @@ app.post('/encrypt', function(req,res){
     // did the user name this?
     let name = req.body.name;
 
-    // wrap the code in commonjs module and then uglify it.
-    let code = UglifyJS.minify('module.exports = function(request,response){' + req.body.code + '};').code;
+    try {
 
-    // generate a crypto key
-    let salt = Math.random() + 'saltingTheSaltWithSaltySalt';
-    let key = crypto.createHash('md5').update(code + salt).digest('hex');
+      // get the code
+      let code = req.body.code;
 
-    // init the cipher
-    var cipher = crypto.createCipher(algorithm, key);
+      // see if the code contains a response.send call 
+      if (!code.test(/response\.send\(/g)) {
+        res.status(400);
+        return res.send("Your code must contain 'response.send()'");
+      }
 
-    // encrypt the code
-    let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
+      // wrap the code in commonjs module and then uglify it.
+      code = UglifyJS.minify('module.exports = function(request,response){' + code + '};').code;
 
-    // store the encryption key with the id being the md5 of the encrypted code
-    db.keys.insert({
-      _id: crypto.createHash('md5').update(encrypted).digest('hex'),
-      user: user._id,
-      name: name,
-      runs: 0,
-      last: 0,
-      created: new Date().getTime(),
-      key: key
-    });
+      // generate a crypto key
+      let salt = Math.random() + 'saltingTheSaltWithSaltySalt';
+      let key = crypto.createHash('md5').update(code + salt).digest('hex');
 
-    // send the encrypted code
-    res.send(encrypted);
+      // init the cipher
+      var cipher = crypto.createCipher(algorithm, key);
+
+      // encrypt the code
+      let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
+
+      // store the encryption key with the id being the md5 of the encrypted code
+      db.keys.insert({
+        _id: crypto.createHash('md5').update(encrypted).digest('hex'),
+        user: user._id,
+        name: name,
+        runs: 0,
+        last: 0,
+        created: new Date().getTime(),
+        key: key
+      });
+
+      // send the encrypted code
+      res.send(encrypted);
+
+    } catch (e) {
+      res.status(500);
+      return res.send(e.toString());
+    }
 
   });
 
 })
-
 
 
 
@@ -246,7 +273,6 @@ app.get('/calls', function(req,res){
 
     })
   });
-
 }).put('/calls/:id', function(req,res){
   // authenticate the user
   app.authenticate(req, (error,user) => {
@@ -256,12 +282,31 @@ app.get('/calls', function(req,res){
       return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
     }
 
-    db.update({ _id: req.params.id, user: user._id }, { $set: req.body }, { multi: false }, function (err, numUpdated) {
+    db.keys.update({ _id: req.params.id, user: user._id }, { $set: req.body }, { multi: false }, function (err, numUpdated) {
       if (err){
         res.status(500);
         res.send(err);
       } else {
         res.send()
+      }
+    });
+  });
+}).delete('/calls/all', function(req,res){
+  // authenticate the user
+  app.authenticate(req, (error,user) => {
+
+    if (!user) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
+
+
+    db.keys.remove({ user: user._id }, { multi: true }, function (err, numRemoved) {
+      if (err){
+        res.status(500);
+        res.send(err);
+      } else {
+        res.send(`${numRemoved} calls removed`);
       }
     });
   });
@@ -275,12 +320,12 @@ app.get('/calls', function(req,res){
     }
 
 
-    db.remove({ _id: req.params.id, user: user._id }, {}, function (err, numRemoved) {
+    db.keys.remove({ _id: req.params.id, user: user._id }, { }, function (err, numRemoved) {
       if (err){
         res.status(500);
         res.send(err);
       } else {
-        res.send()
+        res.send();
       }
     });
   });
@@ -318,7 +363,47 @@ app.get("/:table", function(req,res){
       }
     });
 
-  });
+  })
+}).put("/:table/:id", function(req,res){
+  app.authenticate(req, (error,user) => {
+
+    if (!user || !user.admin) {
+      res.status(403);
+      return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
+    }
+
+    let table = req.params.table;
+    if (!db[table]){
+      res.status(404);
+      return res.send('Object not found');
+    }
+
+
+    if (table == 'users'){
+      req.body.username = req.body.username;
+      req.body.admin = req.body.admin;
+      if (req.body.password) req.body.password = crypto.createHash('md5').update(req.body.password).digest('hex');
+
+    } else if (table == 'packages'){
+      if (!req.body.name){
+        res.status(400);
+        return res.send("A package name is required");
+      }
+    }
+
+    req.body.updatedBy = user._id;
+    req.body.updated = new Date().getTime();
+
+
+    db[table].update({ _id: req.params.id }, { $set: req.body }, (error,obj) => {
+      if (error) {
+        res.status(500);
+        res.send(error);
+      } else {
+        res.send();
+      }
+    });
+  }) 
 }).post("/:table", function(req,res){
   app.authenticate(req, (error,user) => {
 
@@ -327,19 +412,26 @@ app.get("/:table", function(req,res){
       return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
     }
 
-    let newUser = {};
-    newUser.username = req.body.username;
-    newUser.password = crypto.createHash('md5').update(req.body.password).digest('hex')
-    newUser.time = new Date().getTime();
-    newUser.admin = req.body.admin;
-
     let table = req.params.table;
     if (!db[table]){
       res.status(404);
       return res.send('Object not found');
     }
 
-    db[table].insert(newUser, (error,obj) => {
+
+    if (table == 'users'){
+      req.body.username = req.body.username;
+      req.body.admin = req.body.admin;
+      req.body.password = crypto.createHash('md5').update(req.body.password).digest('hex');
+    }
+
+    req.body.updatedBy = user._id;
+    req.body.updated = new Date().getTime();
+    req.body.createdBy = user._id;
+    req.body.created = new Date().getTime();
+
+
+    db[table].insert(req.body, (error,obj) => {
       if (error) {
         res.status(500);
         res.send(error);
@@ -347,7 +439,8 @@ app.get("/:table", function(req,res){
         res.send(obj);
       }
     });
-  }) 
+
+  })
 }).delete("/:table/:id", function(req,res){
   app.authenticate(req, (error,user) => {
 
@@ -378,7 +471,89 @@ app.get("/:table", function(req,res){
 
 
 
-// Fireup the server
-app.listen(3000, () => console.log('Serverless is up and running on port 3000!') )
+// make sure all packages are installed
+// init the package manager and install packages
+let packageManger = new PackageManger( () => {
+  app.listen(3000, () => console.log('Serverless is up and running on port 3000!') )
+});
 
 
+
+
+/**
+ * Manage NPM packages for the VM 
+ * @param {Function} callback - complete initialization callback
+ */
+function PackageManger(callback) {
+  let self = this;
+
+  this.packages = [];
+
+  /**
+   * get packages from the database
+   * @param  {Function} callback - a complete callback
+   */
+  this.get = function(callback){
+    db.packages.find({}, (err, pkgs) => {
+      if (!callback) callback = function(){};
+      if (err) return callback(err);
+      // insert new packages
+      pkgs.forEach( pkg => { if (!self.packages.find( package => package.name == pkg.name)) self.packages.push(pkg); });
+      if (callback) callback();
+    });
+  };
+
+  /**
+   * install a single package
+   * @param  {string} name    - name of package to install
+   * @param  {string} version - the version of package to install
+   */
+  this._install = function(name,version){
+    console.log(`Installing package ${name}@${version}`);
+    if (version) return npm.install([`${name}@${version}`],{ cwd: './', save: false });
+    else return npm.install([`${name}`],{ cwd: './', save: false });
+  };
+
+
+  /**
+   * install all packages in the database
+   * @param  {Function} callback - the completed callback
+   */
+  let installing = false;
+  this.install = function(callback){
+    if (!callback) callback = function(){};
+    if (installing) return callback();
+    installing = true;
+
+    let packagesToInstall = self.packages.filter( pkg => !pkg.installed && !pkg.failed );
+
+    if (!packagesToInstall.length) return callback();
+    packagesToInstall.forEach( (pkg) => {
+      self._install(pkg.name, pkg.version).then( () => {
+        pkg.installed = true;
+        if (!self.packages.filter( pkg => !pkg.installed ).length){
+          installing = false;
+          callback();
+        }
+      }).catch( () => {
+          console.log(`ERROR: Installing package ${pkg.name} failed.`);
+          pkg.failed = true;
+          if (!self.packages.filter( pkg => !pkg.installed ).length){
+            installing = false;
+            callback();
+          }
+      });
+
+    });
+  }
+
+  // update every minutes
+  let checkIntval = setInterval(self.get,60000);
+
+  // install all packages
+  let installInterval = setInterval(self.install,120000);
+    
+  // get packages then install them...then fire the callback...
+  self.get(() => self.install(callback) );
+
+};
