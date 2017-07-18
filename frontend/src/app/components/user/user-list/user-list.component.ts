@@ -11,11 +11,11 @@ export class UserListComponent implements OnInit {
 	users: any = [];
 
   constructor(
-  	private userService: UserService
+  	public userService: UserService
   ) { }
 
   ngOnInit() {
-  	this.userService.getUsers().subscribe( res => this.users = res.json().map( u => { u.create = new Date(u.created); return u; }) );
+    this.userService.get();
   }
 
 }

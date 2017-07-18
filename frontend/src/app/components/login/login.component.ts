@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { Http } from '@angular/http';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -26,11 +27,12 @@ export class LoginComponent implements OnInit {
   }
 
   login(){
-    this.http.post('http://localhost:3000/login',{ username: this.username, password: this.password }).subscribe( response => {
+    this.http.post(`${environment.api}/login`,{ username: this.username, password: this.password }).subscribe( response => {
       let result = response.json();
       if (!result.token) this.error = response.toString();
       else {
         this.error = '';
+        localStorage.setItem('token',result.token);
         localStorage.setItem('profile',atob(result.token.split('.')[1]));
         this.router.navigate(['/']);
       }

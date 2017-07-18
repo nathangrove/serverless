@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { CallService } from '../../../services/call.service';
 
 @Component({
   selector: 'app-call-list',
@@ -7,9 +8,12 @@ import { Component, OnInit } from '@angular/core';
 })
 export class CallListComponent implements OnInit {
 
-  constructor() { }
+  constructor(
+    public callService: CallService
+  ) { }
 
   ngOnInit() {
+    this.callService.get();
   }
 
 }

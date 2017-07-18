@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-
+import { PackageService } from '../../../services/package.service';
 @Component({
   selector: 'app-package-list',
   templateUrl: './package-list.component.html',
@@ -7,9 +7,12 @@ import { Component, OnInit } from '@angular/core';
 })
 export class PackageListComponent implements OnInit {
 
-  constructor() { }
+  constructor(
+    public packageService: PackageService
+  ) { }
 
   ngOnInit() {
+    this.packageService.get();
   }
 
 }

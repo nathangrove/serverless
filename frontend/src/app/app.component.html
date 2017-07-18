@@ -11,16 +11,20 @@
 
 <div>
   <md-toolbar color="primary">
-    <span>Serverless</span>
-
-    <button md-icon-button [md-menu-trigger-for]="menu" *ngIf="authService.isLoggedIn()">
-      <md-icon>more_vert</md-icon>
-    </button>
+    <span>Serve This!</span>
+    
+    <div class="pull-right">
+      <button md-icon-button [md-menu-trigger-for]="menu" *ngIf="authService.isLoggedIn()">
+        <md-icon>more_vert</md-icon>
+      </button>
+    </div>
+    
+    <div class="clearfix"></div>
   </md-toolbar>
   <md-menu x-position="before" #menu="mdMenu">
-    <button md-menu-item *ngIf="authService.isAdmin()" [routerLink]="['/admin/users']">Users</button>
+    <button md-menu-item [routerLink]="['/calls']" routeLinkAcitve="active" >Calls</button>
     <button md-menu-item *ngIf="authService.isAdmin()" [routerLink]="['/admin/packages']">Packages</button>
-    <button md-menu-item [routerLink]="['/user/calls']">Calls</button>
+    <button md-menu-item *ngIf="authService.isAdmin()" [routerLink]="['/admin/users']">Users</button>
     <button md-menu-item (click)="authService.logout()">Logout</button>
   </md-menu>
 

@@ -5,6 +5,8 @@ import { FormsModule } from '@angular/forms';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MaterialModule } from '@angular/material';
 import { CdkTableModule } from '@angular/cdk';
+import { CodemirrorModule } from 'ng2-codemirror';
+
 
 // routing
 import { RouterModule, Routes } from '@angular/router';
@@ -13,6 +15,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { AuthService } from './services/auth.service';
 import { UserGuard } from './guards/user.guard';
 import { AdminGuard } from './guards/admin.guard';
+import { HttpClient } from './services/http-client.service';
 
 // services
 import { UserService } from './services/user.service';
@@ -59,16 +62,15 @@ const appRoutes: Routes = [
         path: 'user',
         children: [
           { path: '', redirectTo: 'calls', pathMatch: 'full' },
-          {
-            path: 'calls',
-            canActivate: [UserGuard],
-            children: [
-              {path: '', component: CallListComponent },
-              {path: ':id', component: CallDetailComponent }
-            ]
-          }
         ]
       }
+    ]
+  },{
+    path: 'calls',
+    canActivate: [UserGuard],
+    children: [
+      {path: '', component: CallListComponent },
+      {path: ':id', component: CallDetailComponent }
     ]
   },
   { path: 'login', component: LoginComponent },
@@ -95,6 +97,7 @@ const appRoutes: Routes = [
     MaterialModule,
     HttpModule,
     FormsModule,
+    CodemirrorModule,
     RouterModule.forRoot(
       appRoutes,
       { enableTracing: true, useHash: true } // <-- debugging purposes only
@@ -106,7 +109,8 @@ const appRoutes: Routes = [
     UserGuard,
     UserService,
     CallService,
-    PackageService
+    PackageService,
+    HttpClient
   ],
   bootstrap: [AppComponent]
 })

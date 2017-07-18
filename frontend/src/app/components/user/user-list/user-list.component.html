@@ -1,35 +1,47 @@
 <md-card-title>System Users</md-card-title>
-<div class="example-container mat-elevation-z8">
-  <md-table #table [dataSource]="users">
 
-    <!--- Note that these columns can be defined in any order.
-          The actual rendered columns are set as a property on the row definition" -->
+<md-card-content>
 
-    <!-- Username Column -->
-    <ng-container cdkColumnDef="username">
-      <md-header-cell *cdkHeaderCellDef> Username </md-header-cell>
-      <md-cell *cdkCellDef="let row"> {{row.username}} </md-cell>
-    </ng-container>
+  <div class="example-container mat-elevation-z8">
+    <md-table #table [dataSource]="userService">
 
-    <!-- Active Column -->
-    <ng-container cdkColumnDef="active">
-      <md-header-cell *cdkHeaderCellDef> Active </md-header-cell>
-      <md-cell *cdkCellDef="let row"> {{row.active}} </md-cell>
-    </ng-container>
+      <ng-container cdkColumnDef="username">
+        <md-header-cell *cdkHeaderCellDef> Username </md-header-cell>
+        <md-cell *cdkCellDef="let row">{{ row.username }}</md-cell>
+      </ng-container>
 
-    <!-- Admin Column -->
-    <ng-container cdkColumnDef="admin">
-      <md-header-cell *cdkHeaderCellDef> Admin </md-header-cell>
-      <md-cell *cdkCellDef="let row"> {{row.admin}} </md-cell>
-    </ng-container>
+      <ng-container cdkColumnDef="active">
+        <md-header-cell *cdkHeaderCellDef> Active </md-header-cell>
+        <md-cell *cdkCellDef="let row">{{ row.active }}</md-cell>
+      </ng-container>
 
-    <!-- Created Column -->
-    <ng-container cdkColumnDef="create">
-      <md-header-cell *cdkHeaderCellDef>Created</md-header-cell>
-      <md-cell *cdkCellDef="let row"> {{row.created | date: 'm/d/Y' }} </md-cell>
-    </ng-container>
+      <ng-container cdkColumnDef="admin">
+        <md-header-cell *cdkHeaderCellDef> Admin </md-header-cell>
+        <md-cell *cdkCellDef="let row">{{ row.admin }}</md-cell>
+      </ng-container>
 
-    <md-header-row *cdkHeaderRowDef="displayedColumns"></md-header-row>
-    <md-row *cdkRowDef="let row; columns: displayedColumns;"></md-row>
-  </md-table>
-</div>
+      <ng-container cdkColumnDef="create">
+        <md-header-cell *cdkHeaderCellDef>Created</md-header-cell>
+        <md-cell *cdkCellDef="let row">{{ row.created.toLocaleString() }}</md-cell>
+      </ng-container>
+
+      <ng-container cdkColumnDef="actions">
+        <md-header-cell *cdkHeaderCellDef></md-header-cell>
+        <md-cell *cdkCellDef="let row">
+          <a [routerLink]="['/admin/users',row._id]"><md-icon>edit</md-icon></a>
+          <a (click)="userService.delete(row._id)"><md-icon>delete</md-icon></a>
+        </md-cell>>
+      </ng-container>
+
+      <md-header-row *cdkHeaderRowDef="['username','active','admin','create','actions']"></md-header-row>
+      <md-row *cdkRowDef="let row; columns: ['username','active','admin','create','actions'];"></md-row>
+    </md-table>
+  </div>
+
+  <md-card-actions>
+    <button class='pull-right' md-fab md-raised-button [routerLink]="['/admin/users/new']"><md-icon>add</md-icon></button>
+    <div class="clearfix"></div>
+  </md-card-actions>
+
+
+</md-card-content>
