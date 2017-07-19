@@ -4,8 +4,7 @@
   "description": "Serverless functions software",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon --ignore admin-app --ignore public index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "nodemon -i \"./frontend\" -i \"./node_modules\" index.js"
   },
   "author": "Nathan Grove <nathan@nathangrove.com>",
   "license": "MIT",
@@ -14,7 +13,12 @@
     "body-parser": "^1.17.2",
     "crypto": "0.0.3",
     "express": "^4.15.3",
+    "fs": "0.0.1-security",
+    "http": "0.0.0",
+    "https": "^1.0.0",
     "nedb": "^1.8.0",
+    "npm-programmatic": "0.0.8",
+    "pem": "^1.9.7",
     "uglify-js": "^3.0.24",
     "vm2": "^3.4.6"
   },
