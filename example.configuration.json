@@ -1,0 +1,13 @@
+{
+  "ssl": true,
+  "port": 443,
+  "sslCert": "cert/certificate.pem",
+  "sslKey": "cert/key.pem",
+  "database": {
+    "type": "local",
+    "location": "database/",
+    "url": "mongodb://",
+    "username": "someuser",
+    "password": "somepass"
+  }
+}

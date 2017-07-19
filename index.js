@@ -25,7 +25,9 @@ function getConfiguration(callback){
   try { conf = JSON.parse(fs.readFileSync('configuration.json', 'utf8')); } catch (e){ console.log('Could not read configuration.json. Using default configuration.'); };
 
   if (!conf.port) conf.port = 3000;
-
+  if (!conf.database) conf.database = { type: "local", location: "database/" };
+  if (!conf.ssl) conf.ssl = true;
+  
   // if we are using ssl...init the https package
   if (conf.ssl){
     try {
