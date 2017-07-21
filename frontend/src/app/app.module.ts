@@ -100,7 +100,7 @@ const appRoutes: Routes = [
     CodemirrorModule,
     RouterModule.forRoot(
       appRoutes,
-      { enableTracing: true, useHash: true } // <-- debugging purposes only
+      { enableTracing: false, useHash: true } // <-- debugging purposes only
     )
   ],
   providers: [
