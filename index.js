@@ -14,6 +14,9 @@ var https = require('https');
 var config, db;
 var packageManger = new PackageManger();
 
+let cryptoSalt = 'saltingTheSaltWithSuperSaltySalt';
+let signatureSalt = 'saltedWithSuperSaltyMrSaltington';
+
 
 /**
  * Get a configuration object
@@ -22,28 +25,29 @@ var packageManger = new PackageManger();
 function getConfiguration(callback){
   let conf = {};
 
-  try { conf = JSON.parse(fs.readFileSync('configuration.json', 'utf8')); } catch (e){ console.log('Could not read configuration.json. Using default configuration.'); };
+  try { conf = JSON.parse(fs.readFileSync(__dirname + '/configuration.json', 'utf8')); } catch (e){ console.log('Could not read configuration.json. Using default configuration.'); };
 
   if (!conf.port) conf.port = 3000;
-  if (!conf.database) conf.database = { type: "local", location: "database/" };
-  if (!conf.ssl) conf.ssl = true;
+  if (!conf.database) conf.database = { type: "local", location: "database" };
+  if (!typeof conf.ssl) conf.ssl = true;
   
   // if we are using ssl...init the https package
   if (conf.ssl){
-    try {
       if (conf.sslCert) conf._sslCert = fs.readFileSync(conf.sslCert, 'utf8');
       if (conf.sslKey) conf._sslKey = fs.readFileSync(conf.sslKey, 'utf8');
-      callback(null,conf);
-    } catch (e) {
-      pem.createCertificate({days: 365, selfSigned:true}, function(err, keys){
-        if (err) return callback("Reading SSL key/cert failed and generation failed.",config);
+      if (!conf.sslCert || !conf.sslKey){
 
-        console.log("Reading of SSL Cert and Key failed. Using self signed valid for 365 days.");
-        conf._sslKey = keys.serviceKey;
-        conf._sslCert = keys.certificate;
+        pem.createCertificate({days: 365, selfSigned:true}, function(err, keys){
+          if (err) return callback("Reading SSL key/cert failed and generation failed.",config);
+
+          console.log("Reading of SSL Cert and Key failed. Using self signed valid for 365 days.");
+          conf._sslKey = keys.serviceKey;
+          conf._sslCert = keys.certificate;
+          callback(null,conf);
+        });
+      } else {
         callback(null,conf);
-      });
-    }
+      }
   } else {
     callback(null,conf);
   }
@@ -166,7 +170,7 @@ app.authenticate = function(request,callback){
 
       if (error) return callback(error);
       if (!user || !user.active) return callback("Invalid user");
-      if (signature != encodeURI(crypto.createHmac('SHA256',user._id + "saltedWithSuperSaltySalt").update(`${header}.${JSON.stringify(payload)}`).digest('hex')))
+      if (signature != encodeURI(crypto.createHmac('SHA256',user._id + signatureSalt).update(`${header}.${JSON.stringify(payload)}`).digest('hex')))
         return callback('Invalid signature');
 
       // convert key into buffer
@@ -219,7 +223,7 @@ app.post('/login', function(req,res){
     let payload = JSON.stringify({ "user": user.username, "admin": user.admin, "data": encryptedPayload });
 
     // jwt signature
-    let signature = crypto.createHmac('SHA256',user._id + "saltedWithSuperSaltySalt").update(`${header}.${payload}`).digest('hex');
+    let signature = crypto.createHmac('SHA256',user._id + signatureSalt).update(`${header}.${payload}`).digest('hex');
 
     // prepare for http transportation
     header = encodeURI(new Buffer(header).toString('base64'));
@@ -261,7 +265,6 @@ app.get('/mycalls', function(req,res){
     })
   });
 }).post('/mycalls', function(req,res){
-
   // authenticate the user
   app.authenticate(req, (error,user) => {
 
@@ -285,12 +288,11 @@ app.get('/mycalls', function(req,res){
       }
 
       // wrap the code in commonjs module and then uglify it.
-      if (!code.indexOf('module.exports') !== 0) code = 'module.exports = function(request,response){' + code + '};';
+      if (!code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){' + code + '};';
       code = UglifyJS.minify(code).code;
 
       // generate a crypto key
-      let salt = Math.random() + 'saltingTheSaltWithSaltySalt';
-      let key = crypto.createHash('md5').update(code + salt).digest('hex');
+      let key = crypto.createHash('md5').update(code + cryptoSalt).digest('hex');
 
       // init the cipher
       var cipher = crypto.createCipher(algorithm, key);
@@ -299,8 +301,9 @@ app.get('/mycalls', function(req,res){
       let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
 
       // store the encryption key with the id being the md5 of the encrypted code
+      let id = crypto.createHash('md5').update(encrypted).digest('hex');
       db.keys.insert({
-        _id: crypto.createHash('md5').update(encrypted).digest('hex'),
+        _id: id,
         user: user._id,
         name: name,
         runs: 0,
@@ -310,7 +313,10 @@ app.get('/mycalls', function(req,res){
       });
 
       // send the encrypted code
-      res.send(encrypted);
+      res.send({
+        _id: id,
+        code: encrypted
+      });
 
     } catch (e) {
       res.status(500);
@@ -327,14 +333,53 @@ app.get('/mycalls', function(req,res){
       return res.send(`<h1>403</h1><h2>Unauthorized: ${error}</h2>`);
     }
 
-    db.keys.update({ _id: req.params.id, user: user._id }, { $set: req.body }, { multi: false }, function (err, numUpdated) {
-      if (err){
-        res.status(500);
-        res.send(err);
-      } else {
-        res.send();
+    try {
+
+      // get the code
+      let code = req.body.code;
+      let id = req.params.id;
+
+      // see if the code contains a response.send call 
+      if (!/response\.send\(/g.test(code)) {
+        res.status(400);
+        return res.send("Your code must contain 'response.send()'");
       }
-    });
+
+      // wrap the code in commonjs module and then uglify it.
+      if (!code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){' + code + '};';
+      code = UglifyJS.minify(code).code;
+
+      // generate a crypto key
+      let key = crypto.createHash('md5').update(code + cryptoSalt).digest('hex');
+
+      // init the cipher
+      var cipher = crypto.createCipher(algorithm, key);
+
+      // encrypt the code
+      let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
+
+      key = crypto.createHash('md5').update(encrypted).digest('hex');
+      db.keys.update({ _id: id, user: user._id }, { $set: {
+        _id: key,
+        updated: new Date().getTime()
+      }}, { multi: false }, (err,num) => {
+        if (err){
+          res.status(500);
+          res.send(err);
+        } else {
+          res.send({
+            _id: key,
+            code: encrypted
+          });
+        }
+      });
+
+      
+    } catch (e) {
+      res.status(500);
+      return res.send(e.toString());
+    }
+
   });
 }).delete('/mycalls/all', function(req,res){
   // authenticate the user
@@ -536,9 +581,9 @@ getConfiguration( (error,conf) => {
   setupDatabase( () => {
     packageManger.initialize( () => {
       if (config.ssl){
-        https.createServer({key: config._sslKey, cert: config._sslCert},app).listen(config.port, () => console.log(`Serverless is up and running on port ${config.port}!`) );
+        https.createServer({key: config._sslKey, cert: config._sslCert},app).listen(config.port, () => console.log(`Serverless is up and running at https://localhost:${config.port}!`) );
       } else {
-        http.createServer(app).listen(config.port, () => console.log(`Serverless is up and running on port ${config.port}!`) );
+        http.createServer(app).listen(config.port, () => console.log(`Serverless is up and running at http://localhost:${config.port}!`) );
       }
     });
   });
