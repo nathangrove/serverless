@@ -29,7 +29,7 @@ export class CallService {
 
   public get() {
     this.http.get(`${environment.api}/mycalls`).subscribe( res => {
-      let calls = res.json().map( c => new Call(c._id,c.runs,c.last,c.created,c.active,c.name)).sort( (a,b) => {
+      let calls = res.json().map( c => new Call(c._id,c.runs,c.crashes,c.last,c.created,c.active,c.name)).sort( (a,b) => {
         if (a.name < b.name) return -1;
         if (a.name > b.name) return 1;
         return 0;

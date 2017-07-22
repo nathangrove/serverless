@@ -22,6 +22,11 @@
         <md-cell *cdkCellDef="let row">{{ row.runs }}</md-cell>
       </ng-container>
 
+      <ng-container cdkColumnDef="crashes">
+        <md-header-cell *cdkHeaderCellDef> Crashes </md-header-cell>
+        <md-cell *cdkCellDef="let row">{{ row.crashes }}</md-cell>
+      </ng-container>
+
       <ng-container cdkColumnDef="last">
         <md-header-cell *cdkHeaderCellDef>Last Run</md-header-cell>
         <md-cell *cdkCellDef="let row">{{ row.last.getTime() ? row.last.toLocaleString() : 'Never' }}</md-cell>
@@ -37,11 +42,11 @@
         <md-cell *cdkCellDef="let row">
           <a [routerLink]="['/calls',row._id]"><md-icon>edit</md-icon></a>
           <a (click)="callService.delete(row._id)"><md-icon>delete</md-icon></a>
-        </md-cell>>
+        </md-cell>
       </ng-container>
 
-      <md-header-row *cdkHeaderRowDef="['name','active','runs','last','created','actions']"></md-header-row>
-      <md-row *cdkRowDef="let row; columns: ['name','active','runs','last','created','actions'];"></md-row>
+      <md-header-row *cdkHeaderRowDef="['name','active','runs','crashes','last','created','actions']"></md-header-row>
+      <md-row *cdkRowDef="let row; columns: ['name','active','runs','crashes','last','created','actions'];"></md-row>
     </md-table>
   </div>
 

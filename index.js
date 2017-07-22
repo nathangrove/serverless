@@ -79,6 +79,7 @@ function setupDatabase( callback ){
   db.packages.persistence.setAutocompactionInterval(1800000);
   db.packages.ensureIndex({ fieldName : 'name', unique: true }, err => { if(err) console.log(err); });
   db.keys.persistence.setAutocompactionInterval(60000);
+  db.keys.ensureIndex({ fieldName : 'signature', unique: true }, err => { if(err) console.log(err); });
 
   callback();
 }
@@ -96,7 +97,7 @@ app.use(bodyParser.json());
 // enable CORS
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Headers", "_normalizedNames, _headers, Origin, X-Requested-With, Content-Type, Accept, Authorization");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE");
   next();
 });
@@ -122,7 +123,7 @@ app.post('/run', function (req, res) {
   let encryptedCode = req.body.code;
 
   // get the decryption key
-  db.keys.findOne({ _id: crypto.createHash('md5').update(encryptedCode).digest('hex'), active: true }, (err,key) => {
+  db.keys.findOne({ signature: crypto.createHash('md5').update(encryptedCode).digest('hex'), active: true}, (err,key) => {
     if (!key){
       res.status(500);
       return res.send('Invalid code');
@@ -132,14 +133,15 @@ app.post('/run', function (req, res) {
       db.keys.update({ _id: key._id},{ $set: {runs: key.runs+1, last: new Date().getTime() }});
 
       // convert key into buffer
-      key = Buffer.from(key.key,'utf8');
+      cryptokey = Buffer.from(key.key,'utf8');
 
       // create the decipher
-      var decipher = crypto.createDecipher(algorithm, key);
+      var decipher = crypto.createDecipher(algorithm, cryptokey);
 
       // decrypt
       var executionCode = decipher.update(encryptedCode, 'hex', 'utf8') + decipher.final('utf8');
-
+	
+      console.log(executionCode);
       // prepare the vm
       let runFunc = vm.run(executionCode,'vm.js');
 
@@ -151,7 +153,7 @@ app.post('/run', function (req, res) {
         db.keys.update({ _id: key._id},{ $set: {crashes: key.crashes+1, last: new Date().getTime() }});
 
         res.status(500);
-        res.send(e);
+        res.send('Error:' + JSON.stringify(e));
       }
   
     }
@@ -278,6 +280,7 @@ app.get('/mycalls', function(req,res){
 }).post('/mycalls', function(req,res){
   // authenticate the user
   app.authenticate(req, (error,user) => {
+    console.log("Creating call");
 
     if (!user) {
       res.status(403);
@@ -312,21 +315,34 @@ app.get('/mycalls', function(req,res){
       let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
 
       // store the encryption key with the id being the md5 of the encrypted code
-      let id = crypto.createHash('md5').update(encrypted).digest('hex');
+      let signature = crypto.createHash('md5').update(encrypted).digest('hex');
       db.keys.insert({
-        _id: id,
+        signature: signature,
+	active: req.body.active ? true : false,
         user: user._id,
         name: name,
         runs: 0,
+        crashes: 0,
         last: 0,
         created: new Date().getTime(),
         key: key
-      });
+      }, (err,newdoc) => {
+ 	if (err && err.errorType == 'uniqueViolated'){
+	  res.send({
+	    signature: signature,
+            code: encrypted
+	  });
+	} else if (err){
+	  res.status(500);
+	  res.send(err);
+	} else {
+      	  // send the encrypted code
+      	  res.send({
+	    signature: signature,
+            code: encrypted
+      	  });
 
-      // send the encrypted code
-      res.send({
-        _id: id,
-        code: encrypted
+	}
       });
 
     } catch (e) {
@@ -335,7 +351,7 @@ app.get('/mycalls', function(req,res){
     }
 
   });
-}).put('/mycalls/:id', function(req,res){
+}).put('/mycalls/:signature', function(req,res){
   // authenticate the user
   app.authenticate(req, (error,user) => {
 
@@ -348,7 +364,7 @@ app.get('/mycalls', function(req,res){
 
       // get the code
       let code = req.body.code;
-      let id = req.params.id;
+      let signature = req.params.signature;
 
       // see if the code contains a response.send call 
       if (!/response\.send\(/g.test(code)) {
@@ -369,17 +385,20 @@ app.get('/mycalls', function(req,res){
       // encrypt the code
       let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
 
-      key = crypto.createHash('md5').update(encrypted).digest('hex');
-      db.keys.update({ _id: id, user: user._id }, { $set: {
-        _id: key,
+      signature = crypto.createHash('md5').update(encrypted).digest('hex');
+
+      db.keys.update({ signature: signature, user: user._id }, { $set: {
+	key: key,
+        signature: signature,
         updated: new Date().getTime()
       }}, { multi: false }, (err,num) => {
         if (err){
+	  console.log("Update key error: ",err);
           res.status(500);
           res.send(err);
         } else {
           res.send({
-            _id: key,
+            signature: signature,
             code: encrypted
           });
         }
@@ -421,7 +440,7 @@ app.get('/mycalls', function(req,res){
     }
 
 
-    db.keys.remove({ _id: req.params.id, user: user._id }, { }, function (err, numRemoved) {
+    db.keys.remove({ signature: req.params.signature, user: user._id }, { }, function (err, numRemoved) {
       if (err){
         res.status(500);
         res.send(err);
