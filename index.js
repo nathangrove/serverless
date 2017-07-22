@@ -33,6 +33,7 @@ function getConfiguration(callback){
   
   // if we are using ssl...init the https package
   if (conf.ssl){
+    try{
       if (conf.sslCert) conf._sslCert = fs.readFileSync(conf.sslCert, 'utf8');
       if (conf.sslKey) conf._sslKey = fs.readFileSync(conf.sslKey, 'utf8');
       if (!conf.sslCert || !conf.sslKey){
@@ -48,6 +49,16 @@ function getConfiguration(callback){
       } else {
         callback(null,conf);
       }
+    } catch (e) {
+      pem.createCertificate({days: 365, selfSigned:true}, function(err, keys){
+        if (err) return callback("Reading SSL key/cert failed and generation failed.",config);
+
+        console.log("Reading of SSL Cert and Key failed. Using self signed valid for 365 days.");
+        conf._sslKey = keys.serviceKey;
+        conf._sslCert = keys.certificate;
+        callback(null,conf);
+      });
+    }
   } else {
     callback(null,conf);
   }
