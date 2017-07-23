@@ -366,6 +366,28 @@ app.get('/mycalls', function(req,res){
       let code = req.body.code;
       let signature = req.params.signature;
 
+	
+      // perhaps just updating the active flag or name
+      if (!code){
+	let update = {};
+	if (typeof req.body.name != 'undefined') update.name = req.body.name;
+	if (typeof req.body.active != 'undefined') update.active = req.body.active;
+	update.updated = new Date().getTime();
+	db.keys.update({ signature: signature, user: user._id }, { 
+	  $set: update
+      	}, { multi: false }, (err,num) => {
+	  if (err){
+	    console.log("Update key error: ",err);
+            res.status(500);
+            res.send(err);
+          } else {
+            res.send();
+          }
+	});
+	return;
+      }
+
+
       // see if the code contains a response.send call 
       if (!/response\.send\(/g.test(code)) {
         res.status(400);
@@ -559,7 +581,7 @@ app.get("/:table", function(req,res){
 
         // post db updates to run
         if (table == 'packages'){
-          pakcageManger.install(req.body.name,req.body.version).then( () => res.send() );
+          packageManager.install(req.body.name,req.body.version).then( () => res.send() );
         } else {
           res.send(obj);
         }
