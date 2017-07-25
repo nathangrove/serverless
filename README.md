@@ -27,16 +27,16 @@ You can clone the repo and issue `npm install` followed by `npm start` to get up
 ## Configuration
 The server can be configured to use a common MongoDB instance or a simple local JSON based database. JSON configuration file.
 
-`ssl: boolean (true default)`
-`port: number (3000 default)`
-`sslCert: string (generated default)`
-'sslKey: string (generated default)`
-`database: object (local database)`
-`database.type: local|mongo (local default)`
-`database.location: string (where to store data files only with "local" database)`
-`database.url: string (only with mongo database)`
-`database.username: string (mongo username)`
-`database.password: string (mongo password)`
+`ssl: boolean (true default)
+port: number (3000 default)
+sslCert: string (generated default)
+sslKey: string (generated default)
+database: object (local database)
+database.type: local|mongo (local default)
+database.location: string (where to store data files only with "local" database)
+database.url: string (only with mongo database)
+database.username: string (mongo username)
+database.password: string (mongo password)`
 
 ### Prerequisites
 
