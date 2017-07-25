@@ -65,19 +65,19 @@ Login Example using CURL
 
 ### Available API Calls
 
-`/run` - POST - Unauthorized - Allows POSTed encrypted `code` to be executed and the results returned.
-`/mycalls` - GET|POST|PUT|DELETE - Authorized - Allows a user to create, read, update, and delete calls they own/created. The server does not store the actual encrtyped code, but rather the key to decrypt the code. So it is important to keep the encrypted response.
-`/calls` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete all encryption keys in the database.
-`/users` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete all users in the system (including other admins)
-`/packages` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete allowed NPM packages that user's code can run.
+`/run` - POST - Unauthorized - Allows POSTed encrypted `code` to be executed and the results returned.  
+`/mycalls` - GET|POST|PUT|DELETE - Authorized - Allows a user to create, read, update, and delete calls they own/created. The server does not store the actual encrtyped code, but rather the key to decrypt the code. So it is important to keep the encrypted response.  
+`/calls` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete all encryption keys in the database.  
+`/users` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete all users in the system (including other admins)  
+`/packages` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete allowed NPM packages that user's code can run.  
 
-### What code call be encrypted?
-The code is ran as an expressjs call handler. It is function that passes in the request's Request and Response objects as variables `reqesut` and `response`.
+### What code call be encrypted?  
+The code is ran as an expressjs call handler. It is function that passes in the request's Request and Response objects as variables `reqesut` and `response`.  
 
-They can be in two formats, as a module, or as function code. Either must contain `response.send`.
+They can be in two formats, as a module, or as function code. Either must contain `response.send`.  
 
-Module: `module.exports = function(request,response){ response.send("Hello world!"); }` 
-Function Code: `response.send("Hello world!");` 
+Module: `module.exports = function(request,response){ response.send("Hello world!"); }`  
+Function Code: `response.send("Hello world!");`  
 
 ### Usage Example
 
