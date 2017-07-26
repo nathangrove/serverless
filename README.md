@@ -100,6 +100,13 @@ Run Code: `curl -X POST \
   "code": "5b16baaabdeba43379b27b70355579759bc857202f2caf0134a948e373f466dcfc6c8d81061cf7eeb1a6b6e0d5296985d26177db8813528139db8026f2933f17d4cd3dca66ffee33c0cf4dca19e7496b"
 }'`
 
+## TODO
+Lots.
+	- Build a more traditional feature of optionally storing the call code for bandwidth or size sensitive applications.
+	- Find a better way to handle NPM packages
+	- Support more languages
+	- ...Make it better 'n stuff...
+
 ## Built With
 
 * [Nodemon](https://nodemon.io/) - Development server reloader
