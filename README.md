@@ -1,5 +1,7 @@
 # Serverless
 
+*Note:* This document talks about MongoDB support, but it is not yet supported (it only uses a local db (NeDB) at this time. This is somewhat of a design document.  
+
 Serverless is a simple task/functions runner that scales easily. It has a unique life cycle different from most (all that I've seen) other FAAS platforms.
 
 ## Serverless Lifecycle
