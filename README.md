@@ -102,10 +102,10 @@ Run Code: `curl -X POST \
 
 ## TODO
 Lots.
-	- Build a more traditional feature of optionally storing the call code for bandwidth or size sensitive applications.
-	- Find a better way to handle NPM packages
-	- Support more languages
-	- ...Make it better 'n stuff...
+* Build a more traditional feature of optionally storing the call code for bandwidth or size sensitive applications.
+* Find a better way to handle NPM packages
+* Support more languages
+* ...Make it better 'n stuff...
 
 ## Built With
 
