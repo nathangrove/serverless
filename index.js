@@ -695,9 +695,14 @@ function PackageManager() {
    */
   this.install = function(name,version){
     if (!name) return;
-    console.log(`Installing package ${name}@${version}`);
-    if (version) return npm.install([`${name}@${version}`],{ cwd: './', save: false });
-    else return npm.install([`${name}`],{ cwd: './', save: false });
+
+    if (version){
+      console.log(`Installing package ${name}@${version}`);
+      return npm.install([`${name}@${version}`],{ cwd: './', save: false });
+    } else {
+      console.log(`Installing package ${name}`);
+      return npm.install([`${name}`],{ cwd: './', save: false });
+    }
   };
 
 
