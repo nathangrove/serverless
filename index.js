@@ -560,12 +560,13 @@ app.get("/:table", function(req,res){
       return res.send('Object not found');
     }
 
-    if (!req.body.password || req.body.password == ''){
-      res.status(400);
-      return res.send("A password is required");
-    }
-
     if (table == 'users'){
+
+      if (!req.body.password || req.body.password == ''){
+        res.status(400);
+        return res.send("A password is required");
+      }
+
       req.body.username = req.body.username;
       req.body.admin = req.body.admin;
       req.body.password = crypto.createHash('md5').update(req.body.password).digest('hex');
@@ -585,7 +586,7 @@ app.get("/:table", function(req,res){
 
         // post db updates to run
         if (table == 'packages'){
-          this.packageManager.install(req.body.name,req.body.version).then( () => res.send() );
+          self.packageManager.install(req.body.name,req.body.version).then( () => res.send() );
         } else {
           res.send(obj);
         }
