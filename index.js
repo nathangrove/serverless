@@ -216,7 +216,6 @@ app.authenticate = function(request,callback){
   } else {
     callback('Authorization header required');
   }
-
 }
 
 
@@ -255,7 +254,6 @@ app.post('/login', function(req,res){
     res.send({ token: `${header}.${payload}.${signature}`});
 
   });
-
 })
 
 
@@ -662,7 +660,6 @@ getConfiguration( (error,conf) => {
       }
     });
   });
-  
 })
 
 
@@ -748,5 +745,4 @@ function PackageManager() {
     self.get(() => self.installAll(callback) );
 
   }
-
 };
