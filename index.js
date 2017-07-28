@@ -2,7 +2,6 @@ var express = require('express');
 const app = express();
 var bodyParser = require('body-parser')
 var crypto = require('crypto');
-let algorithm = 'aes256';
 var UglifyJS = require("uglify-js");
 var auth = require('basic-auth');
 var packageJson = require('./package.json');
@@ -14,6 +13,7 @@ var https = require('https');
 var config, db;
 var packageManger = new PackageManger();
 
+let algorithm = 'aes256';
 let cryptoSalt = 'saltingTheSaltWithSuperSaltySalt';
 let signatureSalt = 'saltedWithSuperSaltyMrSaltington';
 
@@ -303,7 +303,7 @@ app.get('/mycalls', function(req,res){
 
       // wrap the code in commonjs module and then uglify it.
       if (!code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){' + code + '};';
-      code = UglifyJS.minify(code).code;
+      code = UglifyJS.minify(code).code ;
 
       // generate a crypto key
       let key = crypto.createHash('md5').update(code + cryptoSalt).digest('hex');
@@ -318,7 +318,7 @@ app.get('/mycalls', function(req,res){
       let signature = crypto.createHash('md5').update(encrypted).digest('hex');
       db.keys.insert({
         signature: signature,
-	active: req.body.active ? true : false,
+	      active: req.body.active ? true : false,
         user: user._id,
         name: name,
         runs: 0,
@@ -327,22 +327,22 @@ app.get('/mycalls', function(req,res){
         created: new Date().getTime(),
         key: key
       }, (err,newdoc) => {
- 	if (err && err.errorType == 'uniqueViolated'){
-	  res.send({
-	    signature: signature,
+       	if (err && err.errorType == 'uniqueViolated'){
+      	  res.send({
+      	    signature: signature,
             code: encrypted
-	  });
-	} else if (err){
-	  res.status(500);
-	  res.send(err);
-	} else {
+      	  });
+      	} else if (err){
+      	  res.status(500);
+      	  res.send(err);
+      	} else {
       	  // send the encrypted code
       	  res.send({
-	    signature: signature,
+	          signature: signature,
             code: encrypted
       	  });
 
-	}
+	      }
       });
 
     } catch (e) {
@@ -369,22 +369,22 @@ app.get('/mycalls', function(req,res){
 	
       // perhaps just updating the active flag or name
       if (!code){
-	let update = {};
-	if (typeof req.body.name != 'undefined') update.name = req.body.name;
-	if (typeof req.body.active != 'undefined') update.active = req.body.active;
-	update.updated = new Date().getTime();
-	db.keys.update({ signature: signature, user: user._id }, { 
-	  $set: update
+      	let update = {};
+      	if (typeof req.body.name != 'undefined') update.name = req.body.name;
+      	if (typeof req.body.active != 'undefined') update.active = req.body.active;
+      	update.updated = new Date().getTime();
+      	db.keys.update({ signature: signature, user: user._id }, { 
+	        $set: update
       	}, { multi: false }, (err,num) => {
-	  if (err){
-	    console.log("Update key error: ",err);
+	        if (err){
+	          console.log("Update key error: ",err);
             res.status(500);
             res.send(err);
           } else {
             res.send();
           }
-	});
-	return;
+	      });
+	      return;
       }
 
 
@@ -560,6 +560,10 @@ app.get("/:table", function(req,res){
       return res.send('Object not found');
     }
 
+    if (!req.body.password || req.body.password == ''){
+      res.status(400);
+      return res.send("A password is required");
+    }
 
     if (table == 'users'){
       req.body.username = req.body.username;
@@ -581,7 +585,7 @@ app.get("/:table", function(req,res){
 
         // post db updates to run
         if (table == 'packages'){
-          packageManager.install(req.body.name,req.body.version).then( () => res.send() );
+          this.packageManager.install(req.body.name,req.body.version).then( () => res.send() );
         } else {
           res.send(obj);
         }
