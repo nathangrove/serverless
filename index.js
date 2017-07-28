@@ -11,7 +11,7 @@ var fs = require('fs');
 var http = require('http');
 var https = require('https');
 var config, db;
-var packageManger = new PackageManger();
+var packageManager = new PackageManager();
 
 let algorithm = 'aes256';
 let cryptoSalt = 'saltingTheSaltWithSuperSaltySalt';
@@ -115,7 +115,7 @@ app.post('/run', function (req, res) {
     sandbox: {},
     require: {
       external: true,
-      buildin: packageManger.packages
+      buildin: packageManager.packages
     }
   });
     
@@ -140,20 +140,28 @@ app.post('/run', function (req, res) {
 
       // decrypt
       var executionCode = decipher.update(encryptedCode, 'hex', 'utf8') + decipher.final('utf8');
-	
-      console.log(executionCode);
-      // prepare the vm
-      let runFunc = vm.run(executionCode,'vm.js');
 
-      // run the code
+      let runFunc;
       try {
+        // prepare the vm
+        runFunc = vm.run(executionCode,'vm.js');
+      } catch (e) {
+        // update the database
+        db.keys.update({ _id: key._id},{ $set: {crashes: key.crashes+1, last: new Date().getTime() }});
+
+        res.status(500);
+        return res.send('Compilation Error:' + JSON.stringify(e));
+      }
+
+      try {
+        // run the code
         runFunc(req, res);
       } catch (e){
         // update the database
         db.keys.update({ _id: key._id},{ $set: {crashes: key.crashes+1, last: new Date().getTime() }});
 
         res.status(500);
-        res.send('Error:' + JSON.stringify(e));
+        return res.send('Execution Error:' + e);
       }
   
     }
@@ -280,7 +288,6 @@ app.get('/mycalls', function(req,res){
 }).post('/mycalls', function(req,res){
   // authenticate the user
   app.authenticate(req, (error,user) => {
-    console.log("Creating call");
 
     if (!user) {
       res.status(403);
@@ -302,8 +309,8 @@ app.get('/mycalls', function(req,res){
       }
 
       // wrap the code in commonjs module and then uglify it.
-      if (!code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){' + code + '};';
-      code = UglifyJS.minify(code).code ;
+      if (code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){\n' + code + '\n};';
+      code = UglifyJS.minify(code).code;
 
       // generate a crypto key
       let key = crypto.createHash('md5').update(code + cryptoSalt).digest('hex');
@@ -365,72 +372,83 @@ app.get('/mycalls', function(req,res){
       // get the code
       let code = req.body.code;
       let signature = req.params.signature;
-
 	
-      // perhaps just updating the active flag or name
-      if (!code){
-      	let update = {};
-      	if (typeof req.body.name != 'undefined') update.name = req.body.name;
-      	if (typeof req.body.active != 'undefined') update.active = req.body.active;
-      	update.updated = new Date().getTime();
-      	db.keys.update({ signature: signature, user: user._id }, { 
-	        $set: update
-      	}, { multi: false }, (err,num) => {
-	        if (err){
-	          console.log("Update key error: ",err);
+      if (!signature){
+        res.status(400);
+        return res.send("Invalid signature");
+      }
+
+      db.keys.findOne({ signature: signature }, (err,doc) => {
+        if (!doc || err){
+          res.status(404);
+          return res.send("Object not found");
+        }
+
+
+        // perhaps just updating the active flag or name
+        if (!code){
+          let update = {};
+          if (typeof req.body.name != 'undefined') update.name = req.body.name;
+          if (typeof req.body.active != 'undefined') update.active = req.body.active;
+          update.updated = new Date().getTime();
+          db.keys.update({ _id: doc._id, user: user._id }, { 
+            $set: update
+          }, { multi: false }, (err,num) => {
+            if (err){
+              res.status(500);
+              res.send(err);
+            } else {
+              res.send();
+            }
+          });
+          return;
+        }
+
+
+        // see if the code contains a response.send call 
+        if (!/response\.send\(/g.test(code)) {
+          res.status(400);
+          return res.send("Your code must contain 'response.send()'");
+        }
+
+        // wrap the code in commonjs module and then uglify it.
+        if (code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){\n' + code + '\n};';
+        code = UglifyJS.minify(code).code;
+
+        // generate a crypto key
+        let key = crypto.createHash('md5').update(code + cryptoSalt).digest('hex');
+
+        // init the cipher
+        var cipher = crypto.createCipher(algorithm, key);
+
+        // encrypt the code
+        let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
+
+        newSignature = crypto.createHash('md5').update(encrypted).digest('hex');
+
+        let update = {};
+        update.key = key;
+        update.signature = newSignature;
+        update.updated = new Date().getTime();
+        if (req.body.name) update.name = req.body.name;
+        db.keys.update({ _id: doc._id, user: user._id }, { $set: update }, { multi: false }, (err,num) => {
+          if (err){
             res.status(500);
             res.send(err);
           } else {
-            res.send();
+            res.send({
+              signature: signature,
+              code: encrypted
+            });
           }
-	      });
-	      return;
-      }
+        });
 
-
-      // see if the code contains a response.send call 
-      if (!/response\.send\(/g.test(code)) {
-        res.status(400);
-        return res.send("Your code must contain 'response.send()'");
-      }
-
-      // wrap the code in commonjs module and then uglify it.
-      if (!code.indexOf('module.exports') < 0) code = 'module.exports = function(request,response){' + code + '};';
-      code = UglifyJS.minify(code).code;
-
-      // generate a crypto key
-      let key = crypto.createHash('md5').update(code + cryptoSalt).digest('hex');
-
-      // init the cipher
-      var cipher = crypto.createCipher(algorithm, key);
-
-      // encrypt the code
-      let encrypted = cipher.update(code, 'utf8', 'hex') + cipher.final('hex');
-
-      signature = crypto.createHash('md5').update(encrypted).digest('hex');
-
-      db.keys.update({ signature: signature, user: user._id }, { $set: {
-	key: key,
-        signature: signature,
-        updated: new Date().getTime()
-      }}, { multi: false }, (err,num) => {
-        if (err){
-	  console.log("Update key error: ",err);
-          res.status(500);
-          res.send(err);
-        } else {
-          res.send({
-            signature: signature,
-            code: encrypted
-          });
-        }
-      });
-
-      
+      })
+        
     } catch (e) {
       res.status(500);
       return res.send(e.toString());
-    }
+    };
 
   });
 }).delete('/mycalls/all', function(req,res){
@@ -586,7 +604,7 @@ app.get("/:table", function(req,res){
 
         // post db updates to run
         if (table == 'packages'){
-          self.packageManager.install(req.body.name,req.body.version).then( () => res.send() );
+          packageManager.install(req.body.name,req.body.version).then( () => res.send() );
         } else {
           res.send(obj);
         }
@@ -636,7 +654,7 @@ getConfiguration( (error,conf) => {
   config = conf;
 
   setupDatabase( () => {
-    packageManger.initialize( () => {
+    packageManager.initialize( () => {
       if (config.ssl){
         https.createServer({key: config._sslKey, cert: config._sslCert},app).listen(config.port, () => console.log(`Serverless is up and running at https://localhost:${config.port}!`) );
       } else {
@@ -654,7 +672,7 @@ getConfiguration( (error,conf) => {
  * Manage NPM packages for the VM 
  * @param {Function} callback - complete initialization callback
  */
-function PackageManger() {
+function PackageManager() {
   let self = this;
 
   this.packages = [];
