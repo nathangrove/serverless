@@ -435,7 +435,7 @@ app.get('/mycalls', function(req,res){
             res.send(err);
           } else {
             res.send({
-              signature: signature,
+              signature: newSignature,
               code: encrypted
             });
           }
