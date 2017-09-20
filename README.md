@@ -59,7 +59,7 @@ You can use JWT or Basic Auth for authentication. To get a JWT Token, submit a P
 
 Login Example using CURL
 `curl -X POST \
-  https://localhost:3000/login \
+  http://localhost:3000/login \
   -d '{
 	"username": "admin",
 	"password": "admin123"
@@ -89,7 +89,7 @@ Function Code: `response.send("Hello world!");`
 ### Usage Example
 
 Encrypt Code: `curl -X POST \
-  https://serverless.nathangrove.com/mycalls \
+  http://localhost:3000/mycalls \
   -H 'authorization: Basic YWRtaW46YWRtaW4xMjM=' \
   -d '{
   "name": "A simple request proxy",
@@ -97,7 +97,7 @@ Encrypt Code: `curl -X POST \
 }'`
 
 Run Code: `curl -X POST \
-  https://localhost:3000/run \
+  http://localhost:3000/run \
   -d '{
   "code": "5b16baaabdeba43379b27b70355579759bc857202f2caf0134a948e373f466dcfc6c8d81061cf7eeb1a6b6e0d5296985d26177db8813528139db8026f2933f17d4cd3dca66ffee33c0cf4dca19e7496b"
 }'`
