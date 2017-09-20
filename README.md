@@ -18,7 +18,7 @@ The code is never stored on the server, only validated, encrypted, and the key t
 - Scales easily
 
 ### Cons
-- More data trasnfer (each call has to post the code to run)
+- More data transfer (each call has to post the code to run)
 - Encryption and Decryption consume processing cycles
 
 
@@ -42,7 +42,7 @@ database.password: string (mongo password)`
 
 ### Prerequisites
 
-The server can be all self contained, it can run on a minimal server configuration. If you wanted to run it accross multiple servers, you should configure a common MongoDB instance for data storage.
+The server can be all self contained, it can run on a minimal server configuration. If you wanted to run it across multiple servers, you should configure a common MongoDB instance for data storage.
 
 ### Installing
 
@@ -78,7 +78,7 @@ Login Example using CURL
 `/packages` - GET|POST|PUT|DELETE - Authorized (Server Admin) - Allows an admin to create/read/update/delete allowed NPM packages that user's code can run.  
 
 
-### What code call be encrypted?  
+### What code call will be encrypted?  
 The code is ran as an expressjs call handler. It is function that passes in the request's Request and Response objects as variables `reqesut` and `response`.  
 
 They can be in two formats, as a module, or as function code. Either must contain `response.send`.  
@@ -92,9 +92,9 @@ Encrypt Code: `curl -X POST \
   https://serverless.nathangrove.com/mycalls \
   -H 'authorization: Basic YWRtaW46YWRtaW4xMjM=' \
   -d '{
-  "name": "A simple requesty proxy",
+  "name": "A simple request proxy",
   "code": "if (!request.query.url) return response.send('\''A URL is requried as a query parameter'\''); var requestModule = require('\''request'\''); requestModule(request.query.url, function (error, res, body) { if (!error && res.statusCode == 200) { response.send(body); }})"
-}'` 
+}'`
 
 Run Code: `curl -X POST \
   https://localhost:3000/run \
@@ -104,6 +104,7 @@ Run Code: `curl -X POST \
 
 ## TODO
 Lots.
+* Implement MongoDB
 * Build a more traditional feature of optionally storing the call code for bandwidth or size sensitive applications.
 * Find a better way to handle NPM packages
 * Support more languages
